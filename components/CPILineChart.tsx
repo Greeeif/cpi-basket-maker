@@ -20,6 +20,19 @@ type Observation = {
 const MAX_MONTHS = 120;   // 10-year cap
 const MIN_WINDOW = 3;
 
+const MONTH_MAP: Record<string, number> = {
+  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+};
+
+function onsTimeToDate(time: string): Date {
+  const [monthStr, yearStr] = time.split("-");
+  const month = MONTH_MAP[monthStr] ?? 0;
+  const yearNum = parseInt(yearStr, 10);
+  const fullYear = yearNum >= 50 ? 1900 + yearNum : 2000 + yearNum;
+  return new Date(fullYear, month, 1);
+}
+
 const PRESETS = [
   { label: "10Y", months: 120 },
   { label: "5Y", months: 60 },
@@ -102,6 +115,13 @@ export default function CPILineChart() {
     ? ((latest.value - yearAgo.value) / yearAgo.value) * 100
     : null;
 
+  const windowStart = filteredData[0];
+  const windowEnd = filteredData[filteredData.length - 1];
+  const windowChange =
+    windowStart && windowEnd && windowStart !== windowEnd
+      ? ((windowEnd.value - windowStart.value) / windowStart.value) * 100
+      : null;
+
   // ─── SLIDER HANDLERS (unchanged) ─────────────────────────────────────
   function handleStartChange(newStart: number) {
     const clamped = Math.min(newStart, endIndex - MIN_WINDOW);
@@ -114,6 +134,17 @@ export default function CPILineChart() {
   function applyPreset(months: number) {
     setStartIndex(Math.max(0, totalMonths - months));
     setEndIndex(totalMonths - 1);
+  }
+  function applyCustomStart(yyyyMm: string) {
+    if (!yyyyMm) return;
+    const [year, month] = yyyyMm.split("-").map(Number);
+    const target = new Date(year, month - 1, 1).getTime();
+    const closest = data.reduce((bestIdx, obs, i) => {
+      const diff = Math.abs(onsTimeToDate(obs.time).getTime() - target);
+      const bestDiff = Math.abs(onsTimeToDate(data[bestIdx].time).getTime() - target);
+      return diff < bestDiff ? i : bestIdx;
+    }, 0);
+    handleStartChange(closest);
   }
   function isPresetActive(months: number): boolean {
     return (
@@ -173,13 +204,37 @@ export default function CPILineChart() {
                 </p>
               </div>
             )}
+            {windowChange !== null && (
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-bento-slate-400 font-black mb-1">
+                  Over Timeframe
+                </p>
+                <p className={`text-3xl font-mono font-bold ${windowChange >= 0 ? "text-bento-emerald-600" : "text-red-500"}`}>
+                  {windowChange >= 0 ? "+" : ""}
+                  {windowChange.toFixed(1)}%
+                </p>
+              </div>
+            )}
           </div>
         </header>
 
         {/* ─── PRESET PILLS + SLIDER (bento card) ─────────────────── */}
         <div className="bg-white border-2 border-bento-slate-900 rounded-[2rem] p-6 shadow-xl">
 
-          <div className="flex gap-2 mb-6 flex-wrap">
+          <div className="flex gap-3 mb-6 flex-wrap items-center">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-widest text-bento-slate-400 font-black">
+                Start from
+              </label>
+              <input
+                type="month"
+                min={(() => { const d = onsTimeToDate(data[0].time); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; })()}
+                max={(() => { const d = onsTimeToDate(data[totalMonths-1].time); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; })()}
+                onChange={(e) => applyCustomStart(e.target.value)}
+                className="px-3 py-2 text-[11px] font-black rounded-xl border-2 border-bento-slate-100 bg-bento-slate-50 text-bento-slate-700 hover:border-bento-indigo-200 focus:border-bento-indigo-600 focus:outline-none transition-all"
+              />
+            </div>
+            <div className="w-px h-8 bg-bento-slate-100 self-end mb-1" />
             {PRESETS.map((preset) => {
               const active = isPresetActive(preset.months);
               return (
@@ -197,6 +252,7 @@ export default function CPILineChart() {
               );
             })}
           </div>
+
 
           <div className="flex items-center justify-between mb-3">
             <div>
