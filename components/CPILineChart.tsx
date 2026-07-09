@@ -57,8 +57,6 @@ export default function CPILineChart() {
         if (!json.success) throw new Error(json.message || "Failed to fetch");
 
         const capped = json.observations.slice(-MAX_MONTHS);
-        // Temporary debug log — remove once you've confirmed the cap works.
-        console.log(`Raw: ${json.observations.length}, After 10y cap: ${capped.length}`);
         setData(capped);
         setStartIndex(0);
         setEndIndex(capped.length - 1);
